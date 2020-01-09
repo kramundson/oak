@@ -1,0 +1,9 @@
+units: "units.tsv"
+genome: "ref.fa"
+cutadapt:
+    threads: 8
+    adapter: "AGATCGGAAGAGC"
+    qual: 10
+align:
+    threads: 12
+    sort_mem: 2G
