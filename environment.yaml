@@ -9,5 +9,7 @@ dependencies:
  - sra-tools=2.10.1
  - bwa=0.7.12
  - cutadapt=1.15
+ - snakemake=5.9.1-0
  - samtools=1.9
  - pandas=0.24.1
+ - python=3.6.7
