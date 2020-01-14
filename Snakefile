@@ -53,21 +53,35 @@ rule all:
         config["genome"]+".bwt"
 
 # trim adapter and low quality bases from single end reads
+# rule cutadapt:
+#     input:
+#         get_fastq
+#     output:
+#         fastq="data/trimmed/{sample}-{unit}.fastq.gz",
+#         qc="data/trimmed/{sample}-{unit}.qc.txt"
+#     threads: config["cutadapt"]["threads"]
+#     params:
+#         "-a {} -q {}".format(config["cutadapt"]["adapter"], config["cutadapt"]["qual"])
+#     log:
+#         "log/trim/{sample}-{unit}.log"
+#     wrapper:
+#         "0.17.4/bio/cutadapt/se"
+
 rule cutadapt:
     input:
         get_fastq
     output:
-        fastq="data/trimmed/{sample}-{unit}.fastq.gz",
+        fastq="data/trimed/{sample}-{unit}.fastq.gz",
         qc="data/trimmed/{sample}-{unit}.qc.txt"
     threads: config["cutadapt"]["threads"]
     params:
-        "a {} -q {}".format(config["cutadapt"]["adapter"], config["cutadapt"]["qual"])
+        "-a {} -q {}".format(config["cutadapt"]["adapter"], config["cutadapt"]["qual"])
     log:
-        "log/trim/{sample}-{unit}.log"
-    wrapper:
-        "0.17.4/bio/cutadapt/se"
+        "log/trimmed/{sample}-{unit}.log"
+    shell: """
+        cutadapt {params} -j {threads} -o {output.fastq} {input} > {output.qc} 2> {log}
+    """
 
-# trim adapter and low quality bases from paired end reads
 rule cutadapt_pe:
     input:
         get_fastq
@@ -75,14 +89,31 @@ rule cutadapt_pe:
         fastq1="data/trimmed/{sample}-{unit}-1.fastq.gz",
         fastq2="data/trimmed/{sample}-{unit}-2.fastq.gz",
         qc="data/trimmed/{sample}-{unit}.qc.txt"
-    threads:
-        config["cutadapt"]["threads"]
     params:
         "-a {} -A {} -q {}".format(config["cutadapt"]["adapter"], config["cutadapt"]["adapter"], config["cutadapt"]["qual"])
+    threads: config["cutadapt"]["threads"]
     log:
-        "log/trim/{sample}-{unit}.log"
-    wrapper:
-        "0.17.4/bio/cutadapt/pe"
+        "log/trimmed/{sample}-{unit}.log"
+    shell: """
+        cutadapt {params} -o {output.fastq1} -p {output.fastq2} -j {threads} {input} > {output.qc} 2> {log}
+    """
+
+# trim adapter and low quality bases from paired end reads
+# rule cutadapt_pe:
+#     input:
+#         get_fastq
+#     output:
+#         fastq1="data/trimmed/{sample}-{unit}-1.fastq.gz",
+#         fastq2="data/trimmed/{sample}-{unit}-2.fastq.gz",
+#         qc="data/trimmed/{sample}-{unit}.qc.txt"
+#     threads:
+#         config["cutadapt"]["threads"]
+#     params:
+#         "-a {} -A {} -q {}".format(config["cutadapt"]["adapter"], config["cutadapt"]["adapter"], config["cutadapt"]["qual"])
+#     log:
+#         "log/trim/{sample}-{unit}.log"
+#     wrapper:
+#         "0.17.4/bio/cutadapt/pe"
 
 # index reference genome
 rule ref_index:
@@ -110,7 +141,7 @@ rule align:
     threads:
         config["align"]["threads"]
     params:
-        rg="'@RG\\t:ID:{unit}\\tSM:{sample}'",
+        rg="'@RG\\tID:{unit}\\tSM:{sample}'",
         bwa_threads=3*config["align"]["threads"] // 4,
         sort_threads=config["align"]["threads"] // 4,
         sort_mem=config["align"]["sort_mem"]
