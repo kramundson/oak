@@ -61,7 +61,7 @@ rule cutadapt:
         qc="data/trimmed/{sample}-{unit}.qc.txt"
     threads: config["cutadapt"]["threads"]
     params:
-        "a {} {}".format(config["cutadapt"]["adapter"], config["cutadapt"]["qual"])
+        "a {} -q {}".format(config["cutadapt"]["adapter"], config["cutadapt"]["qual"])
     log:
         "log/trim/{sample}-{unit}.log"
     wrapper:
@@ -78,7 +78,7 @@ rule cutadapt_pe:
     threads:
         config["cutadapt"]["threads"]
     params:
-        "-a {} -A {} {}".format(config["cutadapt"]["adapter"], config["cutadapt"]["adapter"], config["cutadapt"]["qual"])
+        "-a {} -A {} -q {}".format(config["cutadapt"]["adapter"], config["cutadapt"]["adapter"], config["cutadapt"]["qual"])
     log:
         "log/trim/{sample}-{unit}.log"
     wrapper:
