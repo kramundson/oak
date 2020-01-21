@@ -50,6 +50,8 @@ def get_trimmed(wildcards):
 rule all:
     input:
         ["data/merged/{}.bam".format(x) for x in units.index.levels[0]],
+	["data/depths/{}_Q20_depth.bed".format(x) for x in units.index.levels[0]],
+        ["data/summarized_depth/{}_depth_summary.tsv".format(x) for x in units.index.levels[0]],
         config["genome"]+".bwt"
 
 # trim adapter and low quality bases from single end reads
@@ -158,3 +160,38 @@ rule merge:
         "data/merged/{sample}.bam"
     shell:
         "samtools merge {output} {input}"
+
+rule depth:
+    input:
+        "data/merged/{sample}.bam"
+    output:
+        "data/depths/{sample}_Q20_depth.bed"
+    log: "log/depth/{sample}.log"
+    shell: """
+        samtools depth -a -Q 20 {input} > {output} 2> {log}
+    """
+
+rule window:
+    input:
+        config["genome"]
+    output:
+        fai="{}.fai".format(config["genome"]),
+        gen="{}.genome".format(config["genome"]),
+        win="10k_{}".format(config["genome"])
+    shell: """
+        samtools faidx {input}
+        awk -v OFS='\t' '{{print $1,$2}}' {output.fai} > {output.gen}
+        bedtools makewindows -w 10000 -g {output.gen} > {output.win}
+    """
+
+rule window_depth:
+    input:
+        win="10k_{}".format(config["genome"]),
+        dep="data/depths/{sample}_Q20_depth.bed"
+    output:
+        "data/summarized_depth/{sample}_depth_summary.tsv"
+    log:
+        "log/summarized_depth/{sample}.log"
+    shell: """
+        python scripts/window_depth_summarizer.py -w {input.win} -b {input.dep} -o {output} > {log} 2>&1
+    """
