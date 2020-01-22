@@ -54,10 +54,12 @@ rule all:
         ["data/summarized_depth/{}_depth_summary.tsv".format(x) for x in units.index.levels[0]],
         config["genome"]+".bwt"
 
+# create temporary folder for parallel-fastq-dump to use instead of /tmp/
 rule tmp_folder:
     output:
         temp(touch("data/reads/tmp/flag"))
 
+# run parallel fastq dump if sra files present but not reads
 rule fastq_dump:
     input:
         "{folder}/{{id}}.sra".format(folder=config["fastq_dump"]["sra_location"].rstrip("/")),
@@ -66,9 +68,9 @@ rule fastq_dump:
         "data/reads/{id}_pass_1.fastq.gz",
         "data/reads/{id}_pass_2.fastq.gz"
     params:
-        # Default /tmp/ directory may not have enough space
+        # alternative temporary directory
         tmpdir="data/reads/tmp/",
-        # Native fastq-dump options
+        # native fastq-dump options
         options="--outdir data/reads/ --gzip --skip-technical --read-filter pass --dumpbase --split-3 --clip"
     threads:
         config["fastq_dump"]["threads"]
@@ -79,20 +81,6 @@ rule fastq_dump:
         "parallel-fastq-dump --sra-id {input[0]} -t {threads} --tmpdir {params.tmpdir} {params.options} > {log} 2>&1"
 
 # trim adapter and low quality bases from single end reads
-# rule cutadapt:
-#     input:
-#         get_fastq
-#     output:
-#         fastq="data/trimmed/{sample}-{unit}.fastq.gz",
-#         qc="data/trimmed/{sample}-{unit}.qc.txt"
-#     threads: config["cutadapt"]["threads"]
-#     params:
-#         "-a {} -q {}".format(config["cutadapt"]["adapter"], config["cutadapt"]["qual"])
-#     log:
-#         "log/trim/{sample}-{unit}.log"
-#     wrapper:
-#         "0.17.4/bio/cutadapt/se"
-
 rule cutadapt:
     input:
         get_fastq
@@ -108,6 +96,7 @@ rule cutadapt:
         cutadapt {params} -j {threads} -o {output.fastq} {input} > {output.qc} 2> {log}
     """
 
+# trim adapter and low quality bases from paired end reads
 rule cutadapt_pe:
     input:
         get_fastq
@@ -123,23 +112,6 @@ rule cutadapt_pe:
     shell: """
         cutadapt {params} -o {output.fastq1} -p {output.fastq2} -j {threads} {input} > {output.qc} 2> {log}
     """
-
-# trim adapter and low quality bases from paired end reads
-# rule cutadapt_pe:
-#     input:
-#         get_fastq
-#     output:
-#         fastq1="data/trimmed/{sample}-{unit}-1.fastq.gz",
-#         fastq2="data/trimmed/{sample}-{unit}-2.fastq.gz",
-#         qc="data/trimmed/{sample}-{unit}.qc.txt"
-#     threads:
-#         config["cutadapt"]["threads"]
-#     params:
-#         "-a {} -A {} -q {}".format(config["cutadapt"]["adapter"], config["cutadapt"]["adapter"], config["cutadapt"]["qual"])
-#     log:
-#         "log/trim/{sample}-{unit}.log"
-#     wrapper:
-#         "0.17.4/bio/cutadapt/pe"
 
 # index reference genome
 rule ref_index:
