@@ -52,6 +52,30 @@ rule all:
         ["data/merged/{}.bam".format(x) for x in units.index.levels[0]],
         config["genome"]+".bwt"
 
+rule tmp_folder:
+    output:
+        temp(touch("data/reads/tmp/flag"))
+
+rule fastq_dump:
+    input:
+        "{folder}/{{id}}.sra".format(folder=config["fastq_dump"]["sra_location"].rstrip("/")),
+        "data/reads/tmp/flag"
+    output:
+        "data/reads/{id}_pass_1.fastq.gz",
+        "data/reads/{id}_pass_2.fastq.gz"
+    params:
+        # Default /tmp/ directory may not have enough space
+        tmpdir="data/reads/tmp/",
+        # Native fastq-dump options
+        options="--outdir data/reads/ --gzip --skip-technical --read-filter pass --dumpbase --split-3 --clip"
+    threads:
+        config["fastq_dump"]["threads"]
+    log:
+        "log/fastq_dump/{id}.log"
+    shell:
+        # --readids option will break bwa mem
+        "parallel-fastq-dump --sra-id {input[0]} -t {threads} --tmpdir {params.tmpdir} {params.options} > {log} 2>&1"
+
 # trim adapter and low quality bases from single end reads
 # rule cutadapt:
 #     input:
