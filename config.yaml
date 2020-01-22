@@ -1,5 +1,8 @@
 units: "units.tsv"
 genome: "ref.fa"
+fastq_dump:
+    threads: 8
+    sra_location: "data/sra/"
 cutadapt:
     threads: 8
     adapter: "AGATCGGAAGAGC"
