@@ -167,13 +167,22 @@ rule depth:
         samtools depth -a -Q 20 {input} > {output} 2> {log}
     """
 
+# Handling genome in top-level or in subfolders:
+
+# Prepend "./" to ensure there will always be a slash, then rsplit on slash.
+# Unpack tuple to place folder in first blank and the rest in last blank.
+# If genome is in top-level, the folder will just be a dot.
+
+# However relative file paths make snakemake mad
+# so after populating the string, use split to strip the leading "./"
+
 rule window:
     input:
         config["genome"]
     output:
         fai="{}.fai".format(config["genome"]),
-        gen="{}.genome".format(config["genome"]),
-        win="10k_{}".format(config["genome"])
+        gen="{}.contigs".format(config["genome"]),
+        win="{}/10k_{}.bed".format(*("./" + config["genome"]).rsplit("/", 1)).split("./", 1)[-1]
     shell: """
         samtools faidx {input}
         awk -v OFS='\t' '{{print $1,$2}}' {output.fai} > {output.gen}
@@ -182,7 +191,7 @@ rule window:
 
 rule window_depth:
     input:
-        win="10k_{}".format(config["genome"]),
+        win="{}/10k_{}.bed".format(*("./" + config["genome"]).rsplit("/", 1)).split("./", 1)[-1],
         dep="data/depths/{sample}_Q20_depth.bed"
     output:
         "data/summarized_depth/{sample}_depth_summary.tsv"
