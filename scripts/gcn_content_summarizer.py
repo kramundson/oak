@@ -11,6 +11,8 @@ from Bio import SeqIO
 
 # Create dictionary of window regions
 def parse_windows(windows_file):
+    sys.stderr.write("Parsing regions from {}\n".format(windows_file))
+
     windows = {}
 
     with open(windows_file, 'r') as f:
@@ -28,9 +30,17 @@ def parse_windows(windows_file):
             # Save region into dictionary
             windows[name].append([int(i) for i in l[1:3]])
 
+    sys.stderr.write("Done parsing regions from {}\n\n".format(windows_file))
+
     return windows
 
 def main():
+    usage="Usage: python gcn_content_summarizer.py windows.bed genome.fa > output.tsv\n"
+    if len(sys.argv) != 3:
+        sys.stderr.write("Wrong number of arguments.\n" + usage)
+        sys.exit(1)
+
+    sys.stderr.write("Windows file: {} \t\tGenome file: {}\n\n".format(sys.argv[1], sys.argv[2]))
 
     # Parse file of windows into dictionary
     windows_file = sys.argv[1]
@@ -39,9 +49,12 @@ def main():
     # Loop through sequences in genome fasta,
     # count G/C/N content in each region,
     # and write out in tab-delimited format.
+    sys.stderr.write("Counting G/C/N content in genome {}\n".format(sys.argv[2]))
 
     genome = sys.argv[2]
     with open("/dev/fd/1", 'w') as out:
+        # Write column names for R
+        print("\t".join(["chrom", "chromStart", "chromEnd", "G", "C", "N"]))
 
         # Loop through records in fasta
         for record in SeqIO.parse(genome, "fasta"):
@@ -58,6 +71,7 @@ def main():
                 # Print sequence name, start, end, and G/C/N counts
                 print("\t".join([record.id, str(start), str(end)] + counts))
 
+    sys.stderr.write("Done counting G/C/N content in genome {}\n".format(sys.argv[2]))
 
 
 if __name__ == "__main__":
