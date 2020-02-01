@@ -218,6 +218,8 @@ rule GCN_content:
         python scripts/gcn_content_summarizer.py {input.win} {input.genome} > {output}
     """
 
+# Find all N regions in genome.
+# To test: bedtools getfasta -fi ref.fa -bed ref_gaps.bed | less
 rule gap_bed:
     input:
         "{{subfolder}}{{ref}}.{ext}".format(ext=config["genome"].rsplit(".")[-1])
@@ -227,6 +229,8 @@ rule gap_bed:
         python scripts/gap_finder.py {input} > {output}
     """
 
+# Apply complement to find all non-N regions in genome.
+# To test: bedtools getfasta -fi ref.fa -bed ref_nongap.bed | grep "N"
 rule safe_bed:
     input:
         gaps="{subfolder}{ref}_gaps.bed",
