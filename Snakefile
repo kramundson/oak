@@ -46,6 +46,11 @@ def get_trimmed(wildcards):
             group=[1,2], **wildcards)
     return "data/trimmed/{sample}-{unit}.fastq.gz".format(**wildcards)
 
+# Subfolder wildcard may match: anything ending with a slash, or nothing
+# This is to support reference being in top-level or in data/genome/
+wildcard_constraints:
+    subfolder=".*/|"
+
 # master rule
 rule all:
     input:
@@ -204,10 +209,10 @@ rule window_depth:
 
 rule GCN_content:
     input:
-        win="{}/10k_{}.bed".format(*("./" + config["genome"]).rsplit("/", 1)).split("./", 1)[-1],
-        genome=config["genome"]
+        win="{{subfolder}}10k_{{ref}}.{ext}.bed".format(ext=config["genome"].rsplit(".")[-1]),
+        genome="{{subfolder}}{{ref}}.{ext}".format(ext=config["genome"].rsplit(".")[-1])
     output:
-        config["genome"].split(".f")[0] + "_GCN.tsv"
+        "{subfolder}{ref}_GCN.tsv"
     shell: """
         python scripts/gcn_content_summarizer.py {input.win} {input.genome} > {output}
     """
