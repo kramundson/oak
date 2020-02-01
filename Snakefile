@@ -53,7 +53,7 @@ rule all:
 	["data/depths/{}_Q20_depth.bed".format(x) for x in units.index.levels[0]],
         ["data/summarized_depth/{}_depth_summary.tsv".format(x) for x in units.index.levels[0]],
         config["genome"]+".bwt",
-        config["genome"].split(".fa")[0] + "_GCN.tsv"
+        config["genome"].split(".f")[0] + "_GCN.tsv"
 
 # create temporary folder for parallel-fastq-dump to use instead of /tmp/
 rule tmp_folder:
@@ -207,7 +207,7 @@ rule GCN_content:
         win="{}/10k_{}.bed".format(*("./" + config["genome"]).rsplit("/", 1)).split("./", 1)[-1],
         genome=config["genome"]
     output:
-        config["genome"].split(".fa")[0] + "_GCN.tsv"
+        config["genome"].split(".f")[0] + "_GCN.tsv"
     shell: """
         python scripts/gcn_content_summarizer.py {input.win} {input.genome} > {output}
     """
