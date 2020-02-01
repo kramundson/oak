@@ -58,7 +58,8 @@ rule all:
 	["data/depths/{}_Q20_depth.bed".format(x) for x in units.index.levels[0]],
         ["data/summarized_depth/{}_depth_summary.tsv".format(x) for x in units.index.levels[0]],
         config["genome"]+".bwt",
-        config["genome"].split(".f")[0] + "_GCN.tsv"
+        config["genome"].split(".f")[0] + "_GCN.tsv",
+        config["genome"].split(".f")[0] + "_nongap.bed"
 
 # create temporary folder for parallel-fastq-dump to use instead of /tmp/
 rule tmp_folder:
@@ -215,4 +216,23 @@ rule GCN_content:
         "{subfolder}{ref}_GCN.tsv"
     shell: """
         python scripts/gcn_content_summarizer.py {input.win} {input.genome} > {output}
+    """
+
+rule gap_bed:
+    input:
+        "{{subfolder}}{{ref}}.{ext}".format(ext=config["genome"].rsplit(".")[-1])
+    output:
+        "{subfolder}{ref}_gaps.bed"
+    shell: """
+        python scripts/gap_finder.py {input} > {output}
+    """
+
+rule safe_bed:
+    input:
+        gaps="{subfolder}{ref}_gaps.bed",
+        gen="{}.contigs".format(config["genome"])
+    output:
+        "{subfolder}{ref}_nongap.bed"
+    shell: """
+        bedtools complement -i {input.gaps} -g {input.gen} > {output}
     """
