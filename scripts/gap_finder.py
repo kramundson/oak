@@ -2,7 +2,6 @@ import sys
 import os
 from re import finditer
 from Bio import SeqIO
-from Bio.Seq import Seq
 
 usage = "Usage: python gap_finder.py genome.fa > n_windows.bed\n"
 if len(sys.argv) < 2:
