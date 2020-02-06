@@ -19,15 +19,25 @@ try:
 except IndexError:
     min_gap_length = str(1)
 
+# Set count_only = False to print gap ranges to standard out
+# and messages to standard error (default behavior)
+
+# Set count_only = True to report number of gaps found but omit ranges
+# (useful to test different minimum gap sizes).
+count_only = False
+
 sys.stderr.write("Finding gaps of minimum length {} in file {}\n".format(min_gap_length, sys.argv[1]))
+if count_only: sys.stderr.write("Not printing intervals; counting gaps only\n")
 
 gap_count = 0
 
 for record in SeqIO.parse(sys.argv[1], "fasta"):
     s = str(record.seq)
+    sys.stderr.write("Counting gaps in record {}\n".format(record.id))
 
     for gap in finditer("N{{{},}}".format(min_gap_length), s):
-        print(record.id, gap.start(), gap.end(), sep="\t")
+        if not count_only:
+            print(record.id, gap.start(), gap.end(), sep="\t")
         gap_count += 1
 
 sys.stderr.write("Total gaps found: {}\n".format(gap_count))
