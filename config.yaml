@@ -10,3 +10,6 @@ cutadapt:
 align:
     threads: 12
     sort_mem: 2G
+
+# Minimum gap length to break genome into sections for variant calling
+split_gap_length: 4000
