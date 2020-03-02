@@ -1,6 +1,10 @@
 units: "units.tsv"
 genome: "ref.fa"
+split_gap_length: 4000
 intervals: "intervals.bed"
+fastq_dump:
+    threads: 8
+    sra_location: "data/sra/"
 cutadapt:
     threads: 8
     adapter: "AGATCGGAAGAGC"
@@ -9,4 +13,5 @@ align:
     threads: 12
     sort_mem: 2G
 freebayes:
-    params: "--hwe-priors-off --min-mapping-quality 20 --min-base-quality 20 --genotype-qualities"
+    params: "--hwe-priors-off --min-mapping-quality 41 --min-base-quality 20 --genotype-qualities"
+    

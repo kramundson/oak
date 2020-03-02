@@ -28,10 +28,10 @@ def get_trimmed(wildcards):
             group=[1,2], **wildcards)
     return "data/trimmed/{sample}-{unit}.fastq.gz".format(**wildcards)
     
-def get_intervals(ref, scaff_size, backup_scaff_size):
+def get_intervals(ref, main_size, backup_size=3000):
     
     """
-    Define intervals for scatter-gather variant calling
+    Define intervals for scatter-gather variant calling.
     """
     
     intervals = []
@@ -40,13 +40,16 @@ def get_intervals(ref, scaff_size, backup_scaff_size):
         for record in SeqIO.parse(handle, "fasta"):
             
             start = 0
-            intervals += chunk_by_gap(record, scaff_size, backup_scaff_size)
-                
+            tmp_int = []
+            s=record.seq
+            scaff_regex = "N"*main_size+ "+"
+            intervals += chunk_by_gap(record, main_size, backup_size)
+            
     o = open(config["intervals"], 'w')
     o.write('\n'.join(intervals))
     return intervals
 
-def chunk_by_gap(record, main_size, backup_size):
+def chunk_by_gap(record, main_size, backup_size=3000):
     
     """
     Divide reference genome assembly up at gaps of specified size.
@@ -75,6 +78,16 @@ def chunk_by_gap(record, main_size, backup_size):
     tmp_int.append("{}\t{}\t{}\t".format(record.id, start, len(record)))
     return tmp_int
 
+# Try looking for a scaffold intervals file in data/intervals
+# If not available, get_intervals() makes a new intervals file that can be used at restart
+try:
+    ifh = open(config["intervals"], 'r')
+    intervals = []
+    for line in ifh:
+        intervals.append(line.rstrip())
+except FileNotFoundError:
+    intervals = get_intervals(config["genome"], config["split_gap_length"])
+
 # Units file is a table that maps unit to sample information
 # Here, a unit is any independent combination of biological sample, library prep, and sequencing run
 # For variant calling from DNAseq data, it is often desirable to QC at the level of units
@@ -95,15 +108,10 @@ samples = {}
 for i in units.index.levels[0]:
     samples[i] = ["data/aligned/{}-{}.bam".format(i,j) for j in units.loc[i].index]
     
-# Try looking for a scaffold intervals file in data/intervals
-# If not available, get_intervals() makes a new intervals file that can be used at restart
-try:
-    ifh = open(config["intervals"], 'r')
-    intervals = []
-    for line in ifh:
-        intervals.append(line.rstrip())
-except FileNotFoundError:
-    intervals = get_intervals(config["genome"], 50000, 3000)
+# Subfolder wildcard may match: anything ending with a slash, or nothing
+# This is to support reference being in top-level or in data/genome/
+wildcard_constraints:
+    subfolder=".*/|"
 
 # master rule
 rule all:
@@ -111,7 +119,35 @@ rule all:
         ["data/merged/{}.bam".format(x) for x in units.index.levels[0]],
         ["data/summarized_depth/{}_depth_summary.tsv".format(x) for x in units.index.levels[0]],
         config["genome"]+".bwt",
+        config["genome"].split(".f")[0] + "_GCN.tsv",
+        # config["genome"].split(".f")[0] + "_nongap_{}.bed".format(str(config["split_gap_length"])),
         "data/calls/all-calls.vcf"
+
+# create temporary folder for parallel-fastq-dump to use instead of /tmp/
+rule tmp_folder:
+    output:
+        temp(touch("data/reads/tmp/flag"))
+
+# run parallel fastq dump if sra files present but not reads
+rule fastq_dump:
+    input:
+        "{folder}/{{id}}.sra".format(folder=config["fastq_dump"]["sra_location"].rstrip("/")),
+        "data/reads/tmp/flag"
+    output:
+        "data/reads/{id}_pass_1.fastq.gz",
+        "data/reads/{id}_pass_2.fastq.gz"
+    params:
+        # alternative temporary directory
+        tmpdir="data/reads/tmp/",
+        # native fastq-dump options
+        options="--outdir data/reads/ --gzip --skip-technical --read-filter pass --dumpbase --split-3 --clip"
+    threads:
+        config["fastq_dump"]["threads"]
+    log:
+        "log/fastq_dump/{id}.log"
+    shell:
+        # --readids option will break bwa mem
+        "parallel-fastq-dump --sra-id {input[0]} -t {threads} --tmpdir {params.tmpdir} {params.options} > {log} 2>&1"
 
 # trim adapter and low quality bases from single end reads
 rule cutadapt:
@@ -210,13 +246,22 @@ rule depth:
         samtools depth -a -Q 20 {input} > {output} 2> {log}
     """
 
+# Handling genome in top-level or in subfolders:
+
+# Prepend "./" to ensure there will always be a slash, then rsplit on slash.
+# Unpack tuple to place folder in first blank and the rest in last blank.
+# If genome is in top-level, the folder will just be a dot.
+
+# However relative file paths make snakemake mad
+# so after populating the string, use split to strip the leading "./"
+
 rule window:
     input:
         config["genome"]
     output:
         fai="{}.fai".format(config["genome"]),
-        gen="{}.genome".format(config["genome"]),
-        win="10k_{}".format(config["genome"])
+        gen="{}.contigs".format(config["genome"]),
+        win="{}/10k_{}.bed".format(*("./" + config["genome"]).rsplit("/", 1)).split("./", 1)[-1]
     shell: """
         samtools faidx {input}
         awk -v OFS='\t' '{{print $1,$2}}' {output.fai} > {output.gen}
@@ -225,7 +270,7 @@ rule window:
 
 rule window_depth:
     input:
-        win="10k_{}".format(config["genome"]),
+        win="{}/10k_{}.bed".format(*("./" + config["genome"]).rsplit("/", 1)).split("./", 1)[-1],
         dep="data/depths/{sample}_Q20_depth.bed"
     output:
         "data/summarized_depth/{sample}_depth_summary.tsv"
@@ -235,6 +280,39 @@ rule window_depth:
         python scripts/window_depth_summarizer.py -w {input.win} -b {input.dep} -o {output} > {log} 2>&1
     """
 
+rule GCN_content:
+    input:
+        win="{{subfolder}}10k_{{ref}}.{ext}.bed".format(ext=config["genome"].rsplit(".")[-1]),
+        genome="{{subfolder}}{{ref}}.{ext}".format(ext=config["genome"].rsplit(".")[-1])
+    output:
+        "{subfolder}{ref}_GCN.tsv"
+    shell: """
+        python scripts/gcn_content_summarizer.py {input.win} {input.genome} > {output}
+    """
+
+# Find all N regions in genome.
+# To test: bedtools getfasta -fi ref.fa -bed ref_gaps.bed | less
+# rule gap_bed:
+#     input:
+#         "{{subfolder}}{{ref}}.{ext}".format(ext=config["genome"].rsplit(".")[-1])
+#     output:
+#         "{subfolder}{ref}_gaps_{gaplength}.bed"
+#     shell: """
+#         python scripts/gap_finder.py {input} {wildcards.gaplength} > {output}
+#     """
+# 
+# # Apply complement to find all non-N regions in genome.
+# # To test: bedtools getfasta -fi ref.fa -bed ref_nongap.bed | grep "N"
+# rule safe_bed:
+#     input:
+#         gaps="{subfolder}{ref}_gaps_{gaplength}.bed",
+#         gen="{}.contigs".format(config["genome"])
+#     output:
+#         "{subfolder}{ref}_nongap_{gaplength}.bed"
+#     shell: """
+#         bedtools complement -i {input.gaps} -g {input.gen} > {output}
+#     """
+
 rule call_variants:
     input:
         ref=config["genome"],
@@ -243,7 +321,7 @@ rule call_variants:
     output:
         "data/calls/intervals/{interval}.vcf"
     params:
-        config["freebayes"]["params"]
+        config["freebayes"]["params"] # TODO add to master
     log:
         "log/freebayes/{interval}.log"
     shell: """
