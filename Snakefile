@@ -1,4 +1,6 @@
 import pandas as pd
+import re
+from Bio import SeqIO
 shell.executable("bash")
 
 """
@@ -10,6 +12,68 @@ Workflow is divided into three steps:
 
 # Config file
 configfile: "config.yaml"
+
+# function determines which units are single-end reads
+def is_single_end(sample,unit):
+    return pd.isnull(units.loc[(sample, unit), "fq2"])
+
+# function returns reads as input for trim step with snakemake wildcards for sample and unit
+def get_fastq(wildcards):
+    return "data/reads/"+units.loc[(wildcards.sample, wildcards.unit), ["fq1", "fq2"]].dropna()
+
+# function returns reads as input for alignment step with snakemake wildcards for sample and unit
+def get_trimmed(wildcards):
+    if not is_single_end(**wildcards):
+        return expand("data/trimmed/{sample}-{unit}-{group}.fastq.gz",
+            group=[1,2], **wildcards)
+    return "data/trimmed/{sample}-{unit}.fastq.gz".format(**wildcards)
+    
+def get_intervals(ref, scaff_size, backup_scaff_size):
+    
+    """
+    Define intervals for scatter-gather variant calling
+    """
+    
+    intervals = []
+    
+    with open(ref, 'r') as handle:
+        for record in SeqIO.parse(handle, "fasta"):
+            
+            start = 0
+            intervals += chunk_by_gap(record, scaff_size, backup_scaff_size)
+                
+    o = open(config["intervals"], 'w')
+    o.write('\n'.join(intervals))
+    return intervals
+
+def chunk_by_gap(record, main_size, backup_size):
+    
+    """
+    Divide reference genome assembly up at gaps of specified size.
+    If dividing by gaps of main size fails, dividing at gaps of backup size is attempted
+    """
+    
+    start = 0
+    tmp_int = []
+    scaff_regex = "N"*main_size
+    
+    for match in re.finditer(scaff_regex, str(record.seq)):
+        tmp_int.append("{}\t{}\t{}".format(record.id, start, start+main_size))
+        start = match.end() + 1
+    
+    # Was it divided up? If not, try a smaller size.
+    # Prevents potato chr00 from being run as one chunk, which takes forever
+    backup_regex = "N"*backup_size+"+"
+    if start == 0:
+        for match in re.finditer(backup_regex, str(record.seq)):
+            tmp_int.append("{}\t{}\t{}".format(record.id, start, start+backup_size))
+            start = match.end() + 1
+    else:
+        pass
+        
+    # handle last interval
+    tmp_int.append("{}\t{}\t{}\t".format(record.id, start, len(record)))
+    return tmp_int
 
 # Units file is a table that maps unit to sample information
 # Here, a unit is any independent combination of biological sample, library prep, and sequencing run
@@ -30,45 +94,26 @@ samples = {}
 # will likely change
 for i in units.index.levels[0]:
     samples[i] = ["data/aligned/{}-{}.bam".format(i,j) for j in units.loc[i].index]
-
-# function determines which units are single-end reads
-def is_single_end(sample,unit):
-    return pd.isnull(units.loc[(sample, unit), "fq2"])
-
-# function returns reads as input for trim step with snakemake wildcards for sample and unit
-def get_fastq(wildcards):
-    return "data/reads/"+units.loc[(wildcards.sample, wildcards.unit), ["fq1", "fq2"]].dropna()
-
-# function returns reads as input for alignment step with snakemake wildcards for sample and unit
-def get_trimmed(wildcards):
-    if not is_single_end(**wildcards):
-        return expand("data/trimmed/{sample}-{unit}-{group}.fastq.gz",
-            group=[1,2], **wildcards)
-    return "data/trimmed/{sample}-{unit}.fastq.gz".format(**wildcards)
+    
+# Try looking for a scaffold intervals file in data/intervals
+# If not available, get_intervals() makes a new intervals file that can be used at restart
+try:
+    ifh = open(config["intervals"], 'r')
+    intervals = []
+    for line in ifh:
+        intervals.append(line.rstrip())
+except FileNotFoundError:
+    intervals = get_intervals(config["genome"], 50000, 3000)
 
 # master rule
 rule all:
     input:
         ["data/merged/{}.bam".format(x) for x in units.index.levels[0]],
-	["data/depths/{}_Q20_depth.bed".format(x) for x in units.index.levels[0]],
         ["data/summarized_depth/{}_depth_summary.tsv".format(x) for x in units.index.levels[0]],
-        config["genome"]+".bwt"
+        config["genome"]+".bwt",
+        "data/calls/all-calls.vcf"
 
 # trim adapter and low quality bases from single end reads
-# rule cutadapt:
-#     input:
-#         get_fastq
-#     output:
-#         fastq="data/trimmed/{sample}-{unit}.fastq.gz",
-#         qc="data/trimmed/{sample}-{unit}.qc.txt"
-#     threads: config["cutadapt"]["threads"]
-#     params:
-#         "-a {} -q {}".format(config["cutadapt"]["adapter"], config["cutadapt"]["qual"])
-#     log:
-#         "log/trim/{sample}-{unit}.log"
-#     wrapper:
-#         "0.17.4/bio/cutadapt/se"
-
 rule cutadapt:
     input:
         get_fastq
@@ -84,6 +129,7 @@ rule cutadapt:
         cutadapt {params} -j {threads} -o {output.fastq} {input} > {output.qc} 2> {log}
     """
 
+# trim adapter and low quality bases from paired end reads
 rule cutadapt_pe:
     input:
         get_fastq
@@ -99,24 +145,7 @@ rule cutadapt_pe:
     shell: """
         cutadapt {params} -o {output.fastq1} -p {output.fastq2} -j {threads} {input} > {output.qc} 2> {log}
     """
-
-# trim adapter and low quality bases from paired end reads
-# rule cutadapt_pe:
-#     input:
-#         get_fastq
-#     output:
-#         fastq1="data/trimmed/{sample}-{unit}-1.fastq.gz",
-#         fastq2="data/trimmed/{sample}-{unit}-2.fastq.gz",
-#         qc="data/trimmed/{sample}-{unit}.qc.txt"
-#     threads:
-#         config["cutadapt"]["threads"]
-#     params:
-#         "-a {} -A {} -q {}".format(config["cutadapt"]["adapter"], config["cutadapt"]["adapter"], config["cutadapt"]["qual"])
-#     log:
-#         "log/trim/{sample}-{unit}.log"
-#     wrapper:
-#         "0.17.4/bio/cutadapt/pe"
-
+    
 # index reference genome
 rule ref_index:
     input:
@@ -158,8 +187,18 @@ rule merge:
         lambda x: samples[x.sample]
     output:
         "data/merged/{sample}.bam"
+    shell: """
+        samtools merge {output} {input}
+        samtools index {output}
+    """
+
+rule index:
+    input:
+        "data/merged/{sample}.bam"
+    output:
+        "data/merged/{sample}.bam.bai"
     shell:
-        "samtools merge {output} {input}"
+        "samtools index {input}"
 
 rule depth:
     input:
@@ -195,3 +234,39 @@ rule window_depth:
     shell: """
         python scripts/window_depth_summarizer.py -w {input.win} -b {input.dep} -o {output} > {log} 2>&1
     """
+
+rule call_variants:
+    input:
+        ref=config["genome"],
+        samples=["data/merged/{}.bam".format(x) for x in units.index.levels[0]],
+        indexes=["data/merged/{}.bam.bai".format(x) for x in units.index.levels[0]],
+    output:
+        "data/calls/intervals/{interval}.vcf"
+    params:
+        config["freebayes"]["params"]
+    log:
+        "log/freebayes/{interval}.log"
+    shell: """
+        echo {wildcards.interval} | tr "_" "\t" > {wildcards.interval}.bed
+        freebayes -t {wildcards.interval}.bed \
+            --fasta-reference {input.ref} \
+            --bam {input.samples} \
+            --vcf {output} \
+            {params} \
+            2> {log}
+        """
+
+# JVM might need more memory
+rule merge_variant_calls:
+    input:
+        ["data/calls/intervals/{}.vcf".format(re.sub("\t", "_", x)) for x in intervals]
+    output:
+        "data/calls/all-calls.vcf"
+    log:
+        "log/merge_vcf.log"
+    shell: """
+        picard GatherVcfs \
+            $(echo {input} | sed 's/data/I=data/g') \
+            O={output} \
+            2> {log}
+        """

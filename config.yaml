@@ -1,5 +1,6 @@
 units: "units.tsv"
 genome: "ref.fa"
+intervals: "intervals.bed"
 cutadapt:
     threads: 8
     adapter: "AGATCGGAAGAGC"
@@ -7,3 +8,5 @@ cutadapt:
 align:
     threads: 12
     sort_mem: 2G
+freebayes:
+    params: "--hwe-priors-off --min-mapping-quality 20 --min-base-quality 20 --genotype-qualities"
