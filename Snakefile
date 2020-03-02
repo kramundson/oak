@@ -75,7 +75,7 @@ def chunk_by_gap(record, main_size, backup_size=3000):
         pass
         
     # handle last interval
-    tmp_int.append("{}\t{}\t{}\t".format(record.id, start, len(record)))
+    tmp_int.append("{}\t{}\t{}".format(record.id, start, len(record)))
     return tmp_int
 
 # Try looking for a scaffold intervals file in data/intervals
