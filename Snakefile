@@ -321,9 +321,10 @@ rule call_variants:
     output:
         "data/calls/intervals/{interval}.vcf"
     params:
-        config["freebayes"]["params"] # TODO add to master
+        config["freebayes"]["params"]
     log:
         "log/freebayes/{interval}.log"
+    shadow: "full"
     shell: """
         echo {wildcards.interval} | tr "_" "\t" > {wildcards.interval}.bed
         freebayes -t {wildcards.interval}.bed \
