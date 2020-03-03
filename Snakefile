@@ -313,21 +313,29 @@ rule GCN_content:
 #         bedtools complement -i {input.gaps} -g {input.gen} > {output}
 #     """
 
+rule temp_interval_bed:
+    input:
+        config["intervals"]
+    output:
+        temp("data/intervals/{interval}.bed")
+    run:
+        with open(output[0], "w") as out:
+            out.write("\t".join(wildcards.interval.rsplit("_", 2)))
+
 rule call_variants:
     input:
         ref=config["genome"],
         samples=["data/merged/{}.bam".format(x) for x in units.index.levels[0]],
         indexes=["data/merged/{}.bam.bai".format(x) for x in units.index.levels[0]],
+        interval="data/intervals/{interval}.bed",
     output:
         "data/calls/intervals/{interval}.vcf"
     params:
         config["freebayes"]["params"]
     log:
         "log/freebayes/{interval}.log"
-    shadow: "full"
     shell: """
-        echo {wildcards.interval} | tr "_" "\t" > {wildcards.interval}.bed
-        freebayes -t {wildcards.interval}.bed \
+        freebayes -t {input.interval} \
             --fasta-reference {input.ref} \
             --bam {input.samples} \
             --vcf {output} \

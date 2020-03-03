@@ -1,7 +1,7 @@
 units: "units.tsv"
 genome: "ref.fa"
 split_gap_length: 4000
-intervals: "intervals.bed"
+intervals: "data/intervals/intervals.bed"
 fastq_dump:
     threads: 8
     sra_location: "data/sra/"
