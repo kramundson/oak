@@ -45,8 +45,8 @@ def get_intervals(ref, main_size, backup_size=3000):
             scaff_regex = "N"*main_size+ "+"
             intervals += chunk_by_gap(record, main_size, backup_size)
             
-    o = open(config["intervals"], 'w')
-    o.write('\n'.join(intervals))
+#     o = open(config["intervals"], 'w')
+#     o.write('\n'.join(intervals))
     return intervals
 
 def chunk_by_gap(record, main_size, backup_size=3000):
@@ -121,6 +121,7 @@ rule all:
         config["genome"]+".bwt",
         config["genome"].split(".f")[0] + "_GCN.tsv",
         # config["genome"].split(".f")[0] + "_nongap_{}.bed".format(str(config["split_gap_length"])),
+        ["data/medians/{}.bed".format(x) for x in units.index.levels[0]],
         "data/calls/all-calls.vcf"
 
 # create temporary folder for parallel-fastq-dump to use instead of /tmp/
@@ -350,3 +351,39 @@ rule merge_variant_calls:
             O={output} \
             2> {log}
         """
+
+rule mosdepth:
+    input:
+        "data/merged/{sample}.bam"
+    output:
+        "data/merged/{sample}.mosdepth.global.dist.txt",
+        "data/merged/{sample}.mosdepth.summary.txt",
+        "data/merged/{sample}.mosdepth.region.dist.txt",
+        "data/merged/{sample}.per-base.bed.gz"
+    params:
+        interval=10000,
+        qual=20
+    threads: 4
+    shell: """
+        mosdepth -t {threads} -b {params.interval} -Q {params.qual} {wildcards.sample} {input}
+    """
+    
+################# DRAFT RULES TO SPEED UP DEPTH CALCULATIONS #################
+    
+rule window_median_depth:
+    input:
+        "data/merged/{sample}.per-base.bed.gz"
+    output:
+        "data/merged/{sample}_median_{interval}.bed"
+    shell: """
+        python scripts/tabix_median.py -w {wildcards.interval} -b {input} -o {output}
+    """
+
+rule gather_window_depth:
+    input:
+        lambda sample: ["data/merged/sample_median_{}.bed".format(re.sub('\t', "_", x) for x in intervals)]
+    output:
+        "data/medians/{sample}.bed"
+    shell: """
+        cat {input} > {output}
+    """
