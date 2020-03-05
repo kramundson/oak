@@ -58,24 +58,25 @@ def chunk_by_gap(record, main_size, backup_size=3000):
     
     start = 0
     tmp_int = []
-    scaff_regex = "N"*main_size
-    
+    scaff_regex = "N{" + str(main_size) +",}"
+
     for match in re.finditer(scaff_regex, str(record.seq)):
-        tmp_int.append("{}\t{}\t{}".format(record.id, start, start+main_size))
-        start = match.end() + 1
-    
+        tmp_int.append("{}\t{}\t{}".format(record.id, start, match.start()))
+        start = match.end()
+
     # Was it divided up? If not, try a smaller size.
     # Prevents potato chr00 from being run as one chunk, which takes forever
-    backup_regex = "N"*backup_size+"+"
+    backup_regex = "N{" + str(backup_size) +",}"
     if start == 0:
         for match in re.finditer(backup_regex, str(record.seq)):
-            tmp_int.append("{}\t{}\t{}".format(record.id, start, start+backup_size))
-            start = match.end() + 1
+            tmp_int.append("{}\t{}\t{}".format(record.id, start, match.start()))
+            start = match.end()
     else:
         pass
-        
-    # handle last interval
-    tmp_int.append("{}\t{}\t{}".format(record.id, start, len(record)))
+
+    # Handle last interval, but only if last interval is not N's
+    if start < len(record):
+        tmp_int.append("{}\t{}\t{}".format(record.id, start, len(record)))
     return tmp_int
 
 # Try looking for a scaffold intervals file in data/intervals
