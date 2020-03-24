@@ -1,6 +1,10 @@
-# Oak
+# Staples
 
-Example Snakemake workflow for sequence alignment and variant calling. Handles technical and biological replicates using the [rnaseq-star workflow example](https://github.com/snakemake-workflows/rna-seq-star-deseq2).
+FASTQ to BAM to VCF. A bioinformatics staple.
+
+This workflow for sequence alignment and variant calling is implemented with [Snakemake](https://snakemake.readthedocs.io/en/stable/) for ease-of-use and reproducibility. Handles technical and biological replicates following the [rna-seq-star-deseq2](https://github.com/snakemake-workflows/rna-seq-star-deseq2) workflow example.
+
+If this is your first time using a Snakemake workflow, you may find it helpful to run our [tutorial](https://github.com/lisakmalins/Snakespeare) first.
 
 
 ## Usage
@@ -8,7 +12,7 @@ Example Snakemake workflow for sequence alignment and variant calling. Handles t
 ### STEP 1: Install miniconda and git
 If you are using a work or lab server, ask your sysadmin if git and conda are installed already. If so, skip to STEP 2.
 
-To download miniconda:
+To __download miniconda__:
 ```
 wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
 bash Miniconda3-latest-Linux-x86_64.sh
@@ -21,18 +25,18 @@ To finish configuring miniconda:
 source $HOME/.bashrc
 ```
 
-To install git:
+To __install git__:
 ```
 conda install git
 ```
 
 ### STEP 2: Clone the repository
 
-In the terminal, navigate to your preferred location and clone this repository.
+In the terminal, navigate to your preferred location and __clone this repository__.
 
 ```
-git clone https://github.com/kramundson/oak.git
-cd oak
+git clone https://github.com/kramundson/staples.git
+cd staples
 ```
 
 ### STEP 3: Build and activate the conda environment
@@ -42,18 +46,16 @@ When you __build the conda environment__, Conda obtains all the software listed 
 conda config --add envs_dirs ./.conda/envs
 conda config --add pkgs_dirs ./.conda/pkgs
 
-# Build conda environment
+# Build staples conda environment
 conda env create -f environment.yaml
 ```
 
-Finally, you will need to __activate the environment__. The environment is named "oak," and the software will only be accessible while the environment is active.
+Finally, you will need to __activate the environment__.
 ```
-source activate oak
+source activate staples
 ```
 
-You only need to build the environment once, but if you log out and log in again, you'll need to reactivate the environment before running this workflow.
-
-If you want to deactivate the environment, you can use the command `conda deactivate`.
+You only need to build the environment once. However, you'll need to activate the environment each time you log in. To deactivate the environment, use the command `conda deactivate`.
 
 ### STEP 4: Download the reference genome and reads
 You'll need to place the reference genome assembly for your organism in `data/genome`.
@@ -73,7 +75,7 @@ The purpose of `units.tsv` is to associate sample information with each of your 
 - `fq1`: forward reads fastq file
 - `fq2`: reverse reads fastq file
 
-An example units.tsv file is included in the workflow.
+An example `units.tsv` file is included in the workflow.
 
 ### STEP 7: Run Snakemake
 To run the workflow with 24 cores and save the printed output to `run_1.out`:
