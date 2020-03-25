@@ -7,14 +7,15 @@
 # - How many threads to use for fastq-dumping, trimming, aligning, and variant calling
 # - How much memory samtools sort is allowed to use
 
-# Spreadsheet of unit/sample info. See README for how to create this file.
+# Tab-delimited file of unit and sample info [required]
+# See README for how to create this file.
 units: "units.tsv"
 # Please fill in the path to your reference genome assembly [required].
 genome: "data/genome/yourgenome.fa"
 
 # In order to speed up variant calling, the reference genome will be
 # split into small chunks that can be processed in parallel.
-# To avoid splitting in the middle of a gene, we want to split where there are
+# To avoid splitting in the middle of a contig, we want to split where there are
 # gaps in the assembly -- for example, 4000 or more N's in a row.
 intervals:
   # Minimum number of N's in a row to split into separate regions
@@ -22,11 +23,12 @@ intervals:
   # Filename for the workflow should store list of regions
   file: "data/intervals/intervals.bed"
 
-# If you have raw SRA files from NCBI, the workflow can convert them to fastq for you.
+# If you have raw .sra files from NCBI Sequence Read Archive (e.g., from prefetch),
+# the workflow can convert them to fastq for you.
 # If you already have fastq files, put them in data/reads/ and this step will be skipped.
 fastq_dump:
     threads: 8
-    # Folder where you downloaded SRA files
+    # Folder where you downloaded .sra files
     sra_location: "data/sra/"
 
 # Parameters for cutadapt and cutadapt_pe rules.
@@ -35,11 +37,12 @@ cutadapt:
     # 3' adapter sequence to remove from all reads.
     # See cutadapt documentation for -a and -A options.
     adapter: "AGATCGGAAGAGC"
-    # Quality trimming cutoff. See cutadapt documentation for -q option.
+    # Base quality trimming cutoff. See cutadapt documentation for -q option.
     qual: 10
 
 # Parameters for align rule.
 align:
+    # Cores that BWA will use for each instance of rule align
     threads: 12
     # Maximum memory per thread for samtools sort; suffix K/M/G recognized
     sort_mem: 2G
