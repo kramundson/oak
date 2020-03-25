@@ -1,17 +1,50 @@
+# This file allows you to configure the workflow to suit your needs.
+
+# Some things you can customize are:
+# - Fill in the name of your reference genome [required]
+# - Parameters for splitting the reference genome into regions to process in parallel
+# - Filename for those regions to be stored
+# - How many threads to use for fastq-dumping, trimming, aligning, and variant calling
+# - How much memory samtools sort is allowed to use
+
+# Spreadsheet of unit/sample info. See README for how to create this file.
 units: "units.tsv"
-genome: "ref.fa"
-split_gap_length: 4000
-intervals: "data/intervals/intervals.bed"
+# Please fill in the path to your reference genome assembly [required].
+genome: "data/genome/yourgenome.fa"
+
+# In order to speed up variant calling, the reference genome will be
+# split into small chunks that can be processed in parallel.
+# To avoid splitting in the middle of a gene, we want to split where there are
+# gaps in the assembly -- for example, 4000 or more N's in a row.
+intervals:
+  # Minimum number of N's in a row to split into separate regions
+  gap_length: 4000
+  # Filename for the workflow should store list of regions
+  file: "data/intervals/intervals.bed"
+
+# If you have raw SRA files from NCBI, the workflow can convert them to fastq for you.
+# If you already have fastq files, put them in data/reads/ and this step will be skipped.
 fastq_dump:
     threads: 8
+    # Folder where you downloaded SRA files
     sra_location: "data/sra/"
+
+# Parameters for cutadapt and cutadapt_pe rules.
 cutadapt:
     threads: 8
+    # 3' adapter sequence to remove from all reads.
+    # See cutadapt documentation for -a and -A options.
     adapter: "AGATCGGAAGAGC"
+    # Quality trimming cutoff. See cutadapt documentation for -q option.
     qual: 10
+
+# Parameters for align rule.
 align:
     threads: 12
+    # Maximum memory per thread for samtools sort; suffix K/M/G recognized
     sort_mem: 2G
+
+# Parameters for call_variants rule.
 freebayes:
-    params: "--hwe-priors-off --min-mapping-quality 41 --min-base-quality 20 --genotype-qualities"
-    
+    # Freebayes command-line options
+    options: "--hwe-priors-off --min-mapping-quality 41 --min-base-quality 20 --genotype-qualities"

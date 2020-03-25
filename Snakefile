@@ -45,8 +45,8 @@ def get_intervals(ref, main_size, backup_size=3000):
             scaff_regex = "N"*main_size+ "+"
             intervals += chunk_by_gap(record, main_size, backup_size)
             
-#     o = open(config["intervals"], 'w')
-#     o.write('\n'.join(intervals))
+    o = open(config["intervals"]["file"], 'w')
+    o.write('\n'.join(intervals))
     return intervals
 
 def chunk_by_gap(record, main_size, backup_size=3000):
@@ -82,12 +82,12 @@ def chunk_by_gap(record, main_size, backup_size=3000):
 # Try looking for a scaffold intervals file in data/intervals
 # If not available, get_intervals() makes a new intervals file that can be used at restart
 try:
-    ifh = open(config["intervals"], 'r')
+    ifh = open(config["intervals"]["file"], 'r')
     intervals = []
     for line in ifh:
         intervals.append(line.rstrip())
 except FileNotFoundError:
-    intervals = get_intervals(config["genome"], config["split_gap_length"])
+    intervals = get_intervals(config["genome"], config["intervals"]["gap_length"])
 
 # Units file is a table that maps unit to sample information
 # Here, a unit is any independent combination of biological sample, library prep, and sequencing run
@@ -121,8 +121,7 @@ rule all:
         ["data/summarized_depth/{}_depth_summary.tsv".format(x) for x in units.index.levels[0]],
         config["genome"]+".bwt",
         config["genome"].split(".f")[0] + "_GCN.tsv",
-        # config["genome"].split(".f")[0] + "_nongap_{}.bed".format(str(config["split_gap_length"])),
-        ["data/medians/{}.bed".format(x) for x in units.index.levels[0]],
+        # config["genome"].split(".f")[0] + "_nongap_{}.bed".format(str(config["intervals"]["gap_length"])),
         "data/calls/all-calls.vcf"
 
 # create temporary folder for parallel-fastq-dump to use instead of /tmp/
@@ -324,7 +323,7 @@ rule call_variants:
         "data/calls/intervals/{interval}.vcf"
     params:
         parsed_interval=lambda wildcards: "\t".join(wildcards.interval.rsplit("_", 2)),
-        freebayes_options=config["freebayes"]["params"]
+        freebayes_options=config["freebayes"]["options"]
     log:
         "log/freebayes/{interval}.log"
     shadow: "full"

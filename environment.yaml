@@ -1,4 +1,4 @@
-name: oak
+name: staples
 channels:
  - conda-forge
  - bioconda
